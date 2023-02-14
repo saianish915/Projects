@@ -11,9 +11,9 @@ genre_df = df[df['genre'].str.contains(user_genre, case=False)]
 if len(genre_df) == 0:
     print(f"No movies found in the {user_genre} genre.")
     exit()
-# Sort the filtered dataset by IMDb rating and select the top 10 movies
-top_movies = genre_df.sort_values('rating', ascending=False).head(10)
+# Sort the filtered dataset by IMDb rating and select the top 20 movies
+top_movies = genre_df.sort_values('rating', ascending=False).head(20)
 # Display the top 10 movies to the user
-print(f"Here are the top 10 {user_genre} movies:\n")
+print(f"Here are the top 20 {user_genre} movies:\n")
 for i, movie in top_movies.iterrows():
     print(f"{i+1}. {movie['name']} ({movie['year']}) - IMDb Rating: {movie['rating']}")
