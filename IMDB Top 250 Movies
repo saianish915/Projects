@@ -1,0 +1,19 @@
+import pandas as pd
+# Load the IMDB Top 250 Movies dataset
+df = pd.read_csv('IMDB Top 250 Movies.csv')
+# Get a list of unique genres in the dataset
+genres = list(set(df['genre']))
+# Ask the user for a genre they want to watch
+user_genre = input(f"What genre of movie would you like to watch? Choose from : ")
+# Filter the dataset to only include movies of the user's chosen genre
+genre_df = df[df['genre'].str.contains(user_genre, case=False)]
+# Check if there are any movies in the selected genre
+if len(genre_df) == 0:
+    print(f"No movies found in the {user_genre} genre.")
+    exit()
+# Sort the filtered dataset by IMDb rating and select the top 10 movies
+top_movies = genre_df.sort_values('rating', ascending=False).head(10)
+# Display the top 10 movies to the user
+print(f"Here are the top 10 {user_genre} movies:\n")
+for i, movie in top_movies.iterrows():
+    print(f"{i+1}. {movie['name']} ({movie['year']}) - IMDb Rating: {movie['rating']}")
