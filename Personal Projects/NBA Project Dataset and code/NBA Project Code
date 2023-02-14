@@ -1,0 +1,18 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+# Loads the Nba dataset
+df = pd.read_csv('nba.csv')
+df
+#Prints top 5 players on dataset
+df.head(5)
+# Calculates the mean number of points for each position
+df.groupby('position')['total_points'].mean()
+#Calculates the mean number of games played by each position
+df.groupby('position')['total_games'].mean()
+# Calculates the mean number of points per game for each position
+df.groupby('position')['points_per_game'].mean()
+# Creates a histogram for total points
+df.hist(column = "total_points", bins=5)
+plt.show()
+#Calculates correlation of points per game and rank on dataset
+df["points_per_game"].corr(df["rank"])
