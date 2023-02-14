@@ -1,0 +1,45 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+import seaborn as sns
+import matplotlib.pyplot as plt
+df = pd.read_csv("Covid Data.csv")
+df
+df["male_or_not"] = np.where(df['SEX'] == 2, 1, 0)
+df["returned_home_or_not"]= np.where(df["PATIENT_TYPE"] == 2, 0, 1)
+df["died_or_not"] = np.where(df["DATE_DIED"] == "9999-99-99", 0 , 1)
+df["heart_or_not"] = np.where(df["CARDIOVASCULAR"]== 2, 0, 1)
+df["blood_vessel_or_not"] = np.where(df["CARDIOVASCULAR"] == 2, 1 , 0)
+df["elder_or_not"] = np.where(df["AGE"]>=65,1,0)
+df["youth_or_not"] = np.where(df["AGE"]<= 18 , 1, 0)
+df = df.applymap(lambda x: 0 if x == 97 else (0 if x == 99 else x))
+df['CLASIFFICATION_FINAL'] = df['CLASIFFICATION_FINAL'].apply(lambda x: 0 if x > 3 else x)
+df['USMER'] = df['USMER'].replace([2], 0)
+df['INTUBED'] = df['INTUBED'].replace([2], 0)
+df['PNEUMONIA'] = df['PNEUMONIA'].replace([2], 0)
+df['PREGNANT'] = df['PREGNANT'].replace([2], 0)
+df['DIABETES'] = df['DIABETES'].replace([2], 0)
+df['COPD']=df['COPD'].replace([2], 0)
+df['ASTHMA'] = df['ASTHMA'].replace([2],0)
+df['INMSUPR'] = df['INMSUPR'].replace([2],0)
+df['HIPERTENSION'] = df['HIPERTENSION'].replace([2],0)
+df['OTHER_DISEASE'] = df['OTHER_DISEASE'].replace([2],0)
+df['RENAL_CHRONIC'] = df['RENAL_CHRONIC'].replace([2],0)
+df['OBESITY'] = df['OBESITY'].replace([2],0)
+df['TOBACCO'] = df['TOBACCO'].replace([2],0)
+df['INTUBED'] = df['INTUBED'].replace([2],0)
+df["ICU"] = df["ICU"].replace([2],0)
+df
+df.drop(['SEX', 'PATIENT_TYPE','DATE_DIED','CARDIOVASCULAR', 'AGE','MEDICAL_UNIT'], axis = 1, inplace = True)
+X = df.drop('died_or_not', axis = 1).values
+y = df['died_or_not'].values
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state = 42)
+model = LinearRegression()
+model.fit(X_train, y_train)
+accuracy = model.score(X_test, y_test)
+accuracy
+mask = np.triu(np.ones_like(df.corr(), dtype=bool))
+plt.figure(figsize=(16, 6))
+heatmap = sns.heatmap(df.corr(), mask=mask, annot=True, cmap='YlGnBu')
+plt.show()
