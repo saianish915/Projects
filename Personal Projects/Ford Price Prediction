@@ -1,0 +1,75 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+df = pd.read_csv("ford.csv")
+df.head(10)
+df.model.value_counts()
+df = df.drop(df[df.model == "Focus"].index)
+df.model.value_counts()
+df.fuelType.value_counts()
+df = df.drop(df[df.fuelType == "Other"].index)
+df.fuelType.value_counts()
+df.transmission.value_counts()
+df.year.value_counts()
+df = df.drop(df[df.year > 2020].index)
+df.year.value_counts()
+df.price.value_counts()
+df.tax.value_counts()
+df.mpg.value_counts()
+df.engineSize.value_counts()
+df.describe()
+df
+plt.scatter(df.mpg, df.price)
+plt.xlabel("mpg")
+plt.ylabel("Price")
+plt.show()
+plt.scatter(df.tax, df.price)
+plt.xlabel("tax")
+plt.ylabel("Price")
+plt.show()
+plt.scatter(df.engineSize, df.price)
+plt.xlabel("engineSize")
+plt.ylabel("Price")
+plt.show()
+plt.scatter(df.year, df.price)
+plt.xlabel("year")
+plt.ylabel("Price")
+plt.show()
+plt.scatter(df.fuelType, df.price)
+plt.xlabel("fuelType")
+plt.ylabel("Price")
+plt.show()
+plt.scatter(df.mileage, df.price)
+plt.xlabel("mileage")
+plt.ylabel("Price")
+plt.show()
+plt.scatter(df.transmission, df.price)
+plt.xlabel("transmission")
+plt.ylabel("Price")
+plt.show()
+from sklearn.preprocessing import LabelEncoder
+label_encoder = LabelEncoder()
+
+df['model'] = label_encoder.fit_transform(df['model'])
+df
+df['transmission'] = label_encoder.fit_transform(df['transmission'])
+df['fuelType'] = label_encoder.fit_transform(df['fuelType'])
+df
+x = np.asanyarray(df[['model', 'year', 'transmission', 'mileage', 'fuelType', 'mpg', 'engineSize']])
+y = np.asanyarray(df[['price']])
+
+mask = np.random.rand(len(df)) < 0.8
+
+train_x = x[mask]
+train_y = y[mask]
+
+test_x = x[~mask]
+test_y = y[~mask]
+print(len(test_x))
+print(len(train_y))
+from sklearn.linear_model import LinearRegression
+
+model = LinearRegression().fit(train_x, train_y)
+print(model.coef_)
+print(model.intercept_)
+model.score(test_x, test_y)
