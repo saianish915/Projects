@@ -57,19 +57,22 @@ All binary features were recoded to standard 0/1 encoding:
 
 ### Feature Engineering
 
-Four new binary features were derived from existing columns:
+Seven new binary features were derived from existing columns:
 
 | New Feature | Definition |
 |-------------|------------|
 | male_or_not | 1 if patient is male |
-| returned_home_or_not | 1 if patient was hospitalized, 0 if returned home |
+| returned_home_or_not | 1 if patient was sent home rather than hospitalized |
 | died_or_not | 1 if DATE_DIED is not 9999-99-99 (target variable) |
+| heart_or_not | 1 if patient has cardiovascular disease |
+| blood_vessel_or_not | Inverse of heart_or_not |
 | elder_or_not | 1 if age >= 65 |
 | youth_or_not | 1 if age <= 18 |
 
 Original columns SEX, AGE, DATE_DIED, CARDIOVASCULAR, PATIENT_TYPE, and
 MEDICAL_UNIT were dropped after feature engineering as their information
-was captured in the derived features.
+was captured in the derived features. Rows with remaining NaN values were
+dropped before modeling.
 
 ---
 
@@ -85,10 +88,9 @@ between each feature and mortality probability.
 
 ### Correlation Analysis
 
-A triangular correlation heatmap was generated across all features to:
-- Identify multicollinearity between predictors
-- Understand which features correlate most strongly with mortality
-- Inform potential feature selection for future model iterations
+A triangular correlation heatmap was generated across all features to
+identify which features correlate most strongly with mortality and to
+detect multicollinearity between predictors.
 
 ### Train Test Split
 
@@ -112,6 +114,9 @@ Key decisions made:
   known comorbidity.
 - Non-confirmed Covid cases (CLASIFFICATION_FINAL > 3) were recoded to 0
   to focus the model on confirmed Covid-19 patients only.
+- Remaining NaN values were dropped after initial recoding as they
+  represented a small proportion of records and could not be reliably
+  imputed.
 
 ### Experiment 2: Feature Engineering
 
@@ -123,30 +128,73 @@ features were created to capture clinically meaningful thresholds:
 - Youth status (age <= 18) to capture the opposing end of the age spectrum
 - Mortality as a derived binary rather than using the raw date column
 
-### Experiment 3: Linear Regression Baseline
+### Experiment 3: Correlation Heatmap Analysis
 
-Trained a Linear Regression model on the processed feature set and
-evaluated using R-squared score on the held out test set.
+A triangular correlation heatmap was generated to understand feature
+relationships before modeling.
 
-Model accuracy (R-squared): [paste your accuracy value here]
+Key correlations with died_or_not:
 
-### Experiment 4: Correlation Heatmap Analysis
+| Feature | Correlation | Interpretation |
+|---------|-------------|----------------|
+| returned_home_or_not | -0.52 | Strongest predictor - sent home means survived |
+| INTUBED | +0.50 | Intubation strongly associated with death |
+| PNEUMONIA | +0.47 | Pneumonia is a major mortality risk factor |
+| ICU | +0.20 | ICU admission indicates severe cases |
+| elder_or_not | +0.14 | Age 65+ associated with higher mortality |
+| youth_or_not | -0.014 | Young patients have lower mortality risk |
 
-Generated a triangular correlation heatmap across all features to
-understand feature relationships and identify the strongest predictors
-of mortality.
+Notable multicollinearity between comorbidities:
 
-Key correlations observed: [paste your findings from the heatmap here]
+| Feature Pair | Correlation |
+|--------------|-------------|
+| COPD and ASTHMA | 0.91 |
+| COPD and INMSUPR | 0.85 |
+| COPD and HIPERTENSION | 0.84 |
+| ASTHMA and INMSUPR | 0.87 |
+
+These comorbidities are highly correlated with each other, consistent
+with clinical reality where patients frequently present with multiple
+concurrent conditions. This multicollinearity may destabilize linear
+regression coefficient estimates.
+
+### Experiment 4: Linear Regression Baseline
+
+A Linear Regression model was trained on the processed feature set.
+
+R-squared on test set: 0.415
+
+The model explains 41.5% of the variance in Covid-19 mortality outcomes.
+For a binary classification problem modeled with linear regression this
+is a reasonable baseline result, though a proper classification model
+evaluated with F1 score and AUC-ROC would be more meaningful.
 
 ---
 
 ## Results
 
 Model: Linear Regression
-R-squared on test set: [paste your accuracy value here]
+R-squared: 0.415
 
-Feature correlations with died_or_not (from heatmap):
-[paste your top correlated features here after running]
+The model explains 41.5% of the variance in patient mortality outcomes.
+
+Key findings from correlation analysis:
+
+Strongest predictors of mortality:
+- Intubation (+0.50) and pneumonia (+0.47) are the strongest clinical
+  signals, reflecting that patients who required mechanical ventilation
+  or developed pneumonia were far more likely to die
+- Being sent home (-0.52) is the strongest single predictor of survival,
+  which is intuitive as patients stable enough to be discharged are by
+  definition not in critical condition
+- Elder status (+0.14) confirms the well-documented age-based mortality
+  risk for Covid-19
+
+Multicollinearity finding:
+- Comorbidity features are highly intercorrelated (COPD, asthma,
+  hypertension, immunosuppression all correlate above 0.80 with each
+  other), suggesting that these conditions tend to cluster together in
+  high-risk patients rather than acting as independent risk factors
 
 ---
 
@@ -155,35 +203,44 @@ Feature correlations with died_or_not (from heatmap):
 1. The hypothesis was supported
 
 Patient characteristics available at admission are meaningfully
-predictive of Covid-19 mortality. The correlation heatmap reveals
-that intubation, ICU admission, pneumonia, and elder status are
-among the strongest predictors of mortality, consistent with
-clinical literature on Covid-19 risk factors.
+predictive of Covid-19 mortality. The correlation analysis confirms
+that intubation, pneumonia, and elder status are among the strongest
+predictors, consistent with clinical literature on Covid-19 risk factors.
+An R-squared of 0.415 indicates the model captures real signal rather
+than noise.
 
-2. Linear regression is insufficient for binary classification
+2. Clinical severity indicators dominate over comorbidities
+
+The strongest predictors are not the comorbidities such as diabetes or
+obesity but rather the clinical severity indicators at admission such as
+intubation and pneumonia. This suggests that what happens to the patient
+after admission is more predictive than what conditions they arrived with.
+
+3. Comorbidities cluster rather than act independently
+
+The high intercorrelations between COPD, asthma, hypertension,
+immunosuppression, and other conditions suggest these should not all be
+treated as independent predictors. A dimensionality reduction approach
+such as PCA could extract a single comorbidity burden score that
+captures the shared variance more cleanly.
+
+4. Linear regression is insufficient for binary classification
 
 Using R-squared as an evaluation metric for a binary outcome is
 theoretically inappropriate. R-squared measures variance explained
 which does not map cleanly to classification performance. A logistic
-regression, Random Forest, or gradient boosting model with F1 score
-and AUC-ROC evaluation would be more appropriate for this problem.
+regression or Random Forest model with F1 score and AUC-ROC evaluation
+would be more appropriate and almost certainly produce better predictions.
 
-3. Missing value treatment is a significant modeling decision
+5. Missing value treatment is a significant modeling decision
 
 Treating 97 and 99 as 0 assumes that unknown comorbidity status
-implies absence of that condition. In reality, missing data may
-be non-random. Patients in worse condition may have had incomplete
+implies absence of that condition. In reality missing data may be
+non-random. Patients in worse condition may have had incomplete
 records. A more rigorous approach would use multiple imputation
 or a missingness indicator feature.
 
-4. Feature engineering improved interpretability
-
-Converting raw age to elder_or_not and youth_or_not captured
-clinically meaningful thresholds rather than treating age as a
-continuous linear predictor. This reflects domain knowledge about
-how age interacts with Covid-19 severity.
-
-5. Limitations
+6. Limitations
 
 - Linear regression is not the appropriate model for binary
   classification and should be replaced with logistic regression
@@ -192,9 +249,11 @@ how age interacts with Covid-19 severity.
 - Class imbalance between survivors and deaths was not addressed
 - No evaluation metrics appropriate for classification such as
   precision, recall, F1, or AUC-ROC were computed
-- The correlation heatmap reveals potential multicollinearity
-  between some comorbidity features which may affect coefficient
-  stability
+- High multicollinearity between comorbidity features may destabilize
+  coefficient estimates
+- The correlation heatmap shows heart_or_not and blood_vessel_or_not
+  are perfectly negatively correlated at -1.0 as they are inverses of
+  each other and one should be dropped
 
 ---
 
