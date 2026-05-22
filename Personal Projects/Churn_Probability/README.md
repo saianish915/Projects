@@ -17,10 +17,11 @@ industry. Acquiring a new customer costs five times more than retaining an
 existing one. Despite this, most telecom companies respond to churn reactively
 rather than proactively.
 
-This project uses the IBM Telco Customer Churn dataset from Kaggle, a widely
-used benchmark dataset in the churn prediction literature, to build a model
-that identifies at-risk customers based on their service usage patterns,
-contract type, and billing behavior.
+This project uses the IBM Telco Customer Churn dataset from Kaggle to build
+a model that identifies at-risk customers based on their service usage
+patterns, contract type, and billing behavior. The dataset was then deployed
+as an interactive Streamlit web application allowing non-technical users to
+assess churn risk for individual customers in real time.
 
 The central question: which customer features are most predictive of churn,
 and can a model identify at-risk customers with enough precision to be
@@ -32,22 +33,46 @@ actionable for a retention team?
 
 Source: IBM Telco Customer Churn (Kaggle)
 Size: 7,043 customers
-Target: Churn (Yes/No)
+Target: Churn (Yes = 1, No = 0)
+Class distribution: 73% non-churn, 27% churn
 
-Features include:
+Features used after cleaning:
 
 | Category | Features |
 |----------|----------|
-| Demographics | Gender, senior citizen status, partner, dependents |
-| Services | Phone, internet, streaming, online security, tech support |
-| Account | Contract type, payment method, paperless billing |
+| Account | Contract type, paperless billing, payment method |
+| Services | Phone, multiple lines, internet, security, backup, protection, tech support, streaming |
 | Billing | Monthly charges, total charges, tenure |
+| Demographics | Gender, senior citizen status, partner, dependents |
 
-Key preprocessing steps:
-- Removed 11 rows where TotalCharges was blank (new customers with no charges)
+### Data Leakage Investigation
+
+The raw dataset contained several columns that were identified and removed
+as leakage before modeling:
+
+| Column | Reason Removed |
+|--------|----------------|
+| Customer Status | Directly encodes whether customer churned, stayed, or joined |
+| Satisfaction Score | Post-churn survey collected after the outcome is known |
+| Churn Score | Derived metric calculated from the churn outcome |
+| Churn Category | Describes why the customer churned |
+| Churn Reason | Describes why the customer churned |
+| CLTV | Customer lifetime value derived from churn outcome |
+
+Including any of these columns produced 100% accuracy, confirming that
+they encode the answer rather than predict it. A model trained with leakage
+is completely useless in production because the leaked features would not
+be available at the time of prediction.
+
+After removing leakage columns, the model trained on 17 genuine predictive
+features and produced realistic results of 82% accuracy and 0.62 F1 score
+on the churn class.
+
+### Key Preprocessing Steps
+- Dropped all leakage columns and geographic/administrative fields
 - Converted TotalCharges from string to float
-- Label encoded all categorical features for model compatibility
-- Dropped customerID as it carries no predictive signal
+- Dropped rows with missing TotalCharges values
+- Label encoded all categorical features
 
 ---
 
@@ -67,7 +92,7 @@ following reasons:
 
 GridSearchCV with 5-fold cross validation was used to find optimal
 hyperparameters, optimizing for F1 score rather than accuracy due to
-class imbalance in the dataset (approximately 73% non-churn, 27% churn):
+class imbalance (73% non-churn, 27% churn):
 
 Parameters searched:
 
@@ -80,6 +105,12 @@ Total combinations tested: 24
 Cross validation folds: 5
 Scoring metric: F1
 
+Best parameters found:
+n_estimators:      200
+max_depth:         20
+min_samples_split: 2
+min_samples_leaf:  2
+
 ### Why F1 Over Accuracy
 
 With 73% of customers not churning, a model that predicts everyone stays
@@ -89,72 +120,142 @@ making it the appropriate metric for imbalanced classification problems.
 
 ### Explainability with SHAP
 
-SHAP (SHapley Additive exPlanations) values were computed using KernelExplainer
-on a sample of 20 test customers to understand which features drove individual
-predictions. This moves beyond global feature importance to explain why the
-model predicted churn for a specific customer.
+SHAP (SHapley Additive exPlanations) values were computed using
+KernelExplainer on a sample of 20 test customers to understand which
+features drove individual predictions. This moves beyond global feature
+importance to explain why the model flagged a specific customer as at risk.
 
 ---
 
 ## Experiments
 
-### Experiment 1: Baseline Random Forest
+### Experiment 1: Data Leakage Detection and Removal
 
-Trained a Random Forest with default hyperparameters to establish a
-performance baseline before tuning.
+The first run produced 100% accuracy across all metrics with a perfect
+confusion matrix of zero errors. This immediately indicated data leakage
+rather than genuine model performance.
+
+Investigation revealed that Customer Status and Satisfaction Score remained
+in the feature set despite an initial drop attempt. Customer Status directly
+encodes the churn outcome (Churned, Stayed, Joined) and Satisfaction Score
+is a post-churn survey result collected after the customer had already left
+or stayed.
+
+After removing all leakage columns accuracy dropped to 82% and F1 for the
+churn class dropped to 0.62, representing genuine predictive performance.
+
+This experiment demonstrates a critical principle in machine learning:
+perfect or near-perfect results on real-world classification problems are
+almost always a sign of a problem rather than a success.
 
 ### Experiment 2: Hyperparameter Tuning with GridSearchCV
 
-Applied GridSearchCV across 24 parameter combinations with 5-fold
-cross validation optimizing for F1 score.
+Applied GridSearchCV across 24 parameter combinations with 5-fold cross
+validation optimizing for F1 score.
 
 Best parameters found:
-[paste your best params output here]
-
-Classification Report:
-[paste your classification report output here]
-
-Confusion Matrix:
-[paste your confusion matrix output here]
+max_depth: 20, min_samples_leaf: 2, min_samples_split: 2, n_estimators: 200
 
 ### Experiment 3: SHAP Explainability Analysis
 
-Applied SHAP KernelExplainer to understand feature contributions at
-the individual prediction level, not just global feature importance.
+Applied SHAP KernelExplainer on 20 test customers to understand individual
+prediction drivers.
 
-Key finding: [paste your top SHAP features here after running]
+Top feature by SHAP importance: Contract type
+
+Contract type was the single strongest predictor of churn, consistent with
+business intuition. Month-to-month customers face no financial penalty for
+leaving and churn at significantly higher rates than customers on one-year
+or two-year contracts.
 
 ---
 
 ## Results
 
-[paste your full classification report here]
+Model: Random Forest Classifier
+Features used: 17
+Accuracy: 82%
 
-Key metrics on held out test set (20% of data):
+Classification Report:
 
-| Metric | Score |
-|--------|-------|
-| Precision (Churn) | [your value] |
-| Recall (Churn) | [your value] |
-| F1 Score (Churn) | [your value] |
-| Overall Accuracy | [your value] |
+| Class | Precision | Recall | F1 Score | Support |
+|-------|-----------|--------|----------|---------|
+| No Churn (0) | 0.85 | 0.91 | 0.88 | 1,035 |
+| Churn (1) | 0.70 | 0.56 | 0.62 | 374 |
+| Accuracy | | | 0.82 | 1,409 |
+| Macro Avg | 0.78 | 0.74 | 0.75 | 1,409 |
+| Weighted Avg | 0.81 | 0.82 | 0.81 | 1,409 |
 
-Top 10 most important features by Random Forest importance score:
-[paste your feature importance chart findings here]
+Confusion Matrix:
+
+| | Predicted No Churn | Predicted Churn |
+|--|-------------------|-----------------|
+| Actual No Churn | 947 | 88 |
+| Actual Churn | 166 | 208 |
+
+In business terms:
+- 947 customers correctly identified as staying
+- 208 customers correctly identified as churning
+- 88 false alarms (flagged as churn risk but stayed)
+- 166 missed churners (predicted to stay but actually left)
 
 ---
 
-## Deployment
+## Conclusion and Takeaways
 
-The trained model was serialized using joblib for deployment:
+1. Data leakage is the most dangerous failure mode in ML
 
-churn_model_rf.pkl     Trained Random Forest model
-feature_columns.pkl    Feature column names for input validation
-churn_pipeline.pkl     Full sklearn pipeline for Streamlit deployment
+The most important finding in this project was not the final model
+performance but the detection and removal of data leakage. A 100% accurate
+model that relies on post-outcome data is not a model at all. It is a
+lookup table. Identifying and removing leakage columns before reporting
+results is a fundamental requirement of honest machine learning practice.
 
-The pipeline wraps the model in a sklearn Pipeline object to ensure
-consistent preprocessing between training and inference when deployed
-in a Streamlit application.
+2. Contract type is the strongest predictor of churn
+
+SHAP analysis confirmed that contract type drives churn predictions more
+than any other feature. Month-to-month customers churn at dramatically
+higher rates than customers on annual or biannual contracts. This finding
+directly translates to a business intervention: offering contract lock-in
+incentives to high-risk month-to-month customers is the most actionable
+retention strategy this model supports.
+
+3. Recall on the churn class is the critical metric
+
+The model catches 56% of actual churners (recall of 0.56) and misses 44%.
+For a retention team operating on a fixed budget, recall matters more than
+precision because the cost of missing a churner who leaves far exceeds the
+cost of a false alarm retention offer. Future work would use a lower
+classification threshold to increase recall at the cost of some precision.
+
+4. F1 optimization matters more than accuracy for imbalanced problems
+
+Optimizing for accuracy on this dataset would produce a misleading model.
+By optimizing for F1 during hyperparameter search the model learned to
+identify churners rather than simply predicting the majority class.
+
+5. Deployment bridges the gap between model and business user
+
+A model that lives in a Jupyter notebook has no business value. Wrapping
+the pipeline in a Streamlit app makes the model accessible to a retention
+team who can query individual customers in real time without any technical
+knowledge. This reflects how machine learning models are actually used in
+production environments.
+
+6. Limitations
+
+- Label encoding assumes ordinal relationships between categories which
+  may not hold for features like payment method or contract type.
+  One-hot encoding would be more theoretically appropriate.
+- SHAP was computed on only 20 samples due to computational cost of
+  KernelExplainer. TreeExplainer would be faster and allow full test
+  set explanation.
+- Recall of 0.56 on the churn class means 44% of churners are missed.
+  Lowering the classification threshold from 0.5 to 0.3 would likely
+  improve recall significantly at the cost of more false alarms.
+- No cost-sensitive learning was applied. In practice the cost of missing
+  a churner likely exceeds the cost of a false positive retention offer,
+  suggesting recall should be weighted more heavily than precision.
 
 ---
 
@@ -175,21 +276,18 @@ The app takes 19 customer inputs through a simple form interface:
 | Account | Contract type, paperless billing, payment method |
 | Billing | Monthly charges, total charges, tenure |
 
-The user fills in the form and clicks Predict. The app:
-
-1. Maps all categorical inputs to the same numeric encoding used during training
-2. Passes the encoded input through the saved pipeline
-3. Returns a binary prediction (Churn or No Churn)
-4. Returns the exact churn probability as a percentage
+The user fills in the form and clicks Predict. The app returns a binary
+prediction (Churn or No Churn) and the exact churn probability as a
+percentage.
 
 ### Example Output
 
 Prediction:        Churn
 Churn Probability: 73.4%
 
-This probability score is more actionable than a binary prediction alone.
-A retention team can set their own threshold based on the cost of intervention
-versus the cost of losing the customer.
+The probability score is more actionable than a binary prediction alone.
+A retention team can set their own threshold based on the cost of
+intervention versus the cost of losing the customer.
 
 ### Running The App Locally
 
@@ -203,66 +301,6 @@ versus the cost of losing the customer.
 
 4. App opens automatically at:
    http://localhost:8501
-
-### Key Design Decisions
-
-The Streamlit app uses the full pipeline object rather than the raw model.
-This ensures the identity transform preprocessor is applied consistently
-between training and inference, preventing feature mismatch errors when
-the model receives new input data.
-
-Categorical inputs are mapped to integers using the same encoding scheme
-applied during training:
-
-Contract:         Month-to-month=0, One year=1, Two year=2
-Internet Service: No=0, DSL=1, Fiber optic=2
-Payment Method:   Electronic check=0, Mailed check=1, Bank transfer=2, Credit card=3
-All Yes/No:       No=0, Yes=1
-
----
-
-## Conclusion and Takeaways
-
-1. Churn is predictable from behavioral signals
-
-The model confirms that churn is not random. Contract type, tenure,
-and monthly charges are consistently among the top predictors, suggesting
-that customers on month-to-month contracts who have been with the company
-a short time and pay higher monthly fees are disproportionately likely
-to churn.
-
-2. F1 optimization matters more than accuracy for imbalanced problems
-
-Optimizing for accuracy on this dataset would produce a misleading model.
-By optimizing for F1 during hyperparameter search, the model learned to
-identify churners rather than simply predicting the majority class.
-
-3. SHAP adds actionability to predictions
-
-Global feature importance tells you which features matter on average.
-SHAP tells you why the model flagged a specific customer. This distinction
-is critical for a retention team who need to know not just who is at risk
-but what intervention to offer.
-
-4. Complexity of deployment matters as much as model performance
-
-A model that lives in a Jupyter notebook has no business value. Wrapping
-the pipeline in a Streamlit app makes the model accessible to a retention
-team who can query individual customers in real time without any technical
-knowledge. This reflects how machine learning models are actually used in
-production environments.
-
-5. Limitations
-
-- Label encoding assumes ordinal relationships between categories which
-  may not hold for features like payment method or contract type.
-  One-hot encoding would be more theoretically appropriate.
-- SHAP was computed on only 20 samples due to computational cost of
-  KernelExplainer. TreeExplainer would be faster and allow full test
-  set explanation.
-- No cost-sensitive learning was applied. In practice, the cost of
-  missing a churner likely exceeds the cost of a false positive retention
-  offer, suggesting recall should be weighted more heavily than precision.
 
 ---
 
@@ -283,7 +321,7 @@ Streamlit        Interactive web application for model deployment
 
 ### Model Training
 
-1. Download Telco.csv from Kaggle:
+1. Download telco.csv from Kaggle:
    https://www.kaggle.com/datasets/blastchar/telco-customer-churn
 
 2. Install dependencies:
