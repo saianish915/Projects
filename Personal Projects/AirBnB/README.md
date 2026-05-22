@@ -146,10 +146,3 @@ scikit-learn    Linear regression, train test split, RMSE evaluation
 3. Place Airbnb_Open_Data.csv in the project directory
 4. Run the script:
    python airbnb_predictor.py
-
----
-
-## Disclaimer
-
-This project is for educational purposes only and is not intended
-for commercial use.
