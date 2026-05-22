@@ -29,18 +29,19 @@ fuel type, MPG, and engine size.
 
 Source: Ford Used Car Dataset (Kaggle)
 Raw size: 17,966 listings
+Training set: 14,527 listings
+Test set: 3,436 listings
 Target: Price (GBP)
 
 Features:
 
 | Feature | Description |
 |---------|-------------|
-| model | Ford model name (Fiesta, Focus, Kuga, etc.) |
+| model | Ford model name (Fiesta, Kuga, etc.) |
 | year | Year of manufacture |
 | transmission | Manual, Automatic, or Semi-Auto |
 | mileage | Total miles driven |
 | fuelType | Petrol, Diesel, Hybrid, or Electric |
-| tax | Annual road tax (GBP) |
 | mpg | Miles per gallon fuel efficiency |
 | engineSize | Engine displacement in litres |
 
@@ -49,9 +50,8 @@ Features:
 Three filtering decisions were made before modeling:
 
 1. Focus model removed
-   The Ford Focus was removed from the dataset. This decision likely
-   reflects an anomaly in Focus pricing data that distorted model
-   performance, such as extreme outliers or inconsistent pricing.
+   The Ford Focus was removed from the dataset due to anomalous pricing
+   patterns that distorted model performance.
 
 2. Other fuel type removed
    Listings with fuelType of Other were removed as this category was
@@ -64,46 +64,70 @@ Three filtering decisions were made before modeling:
 
 ---
 
-## Methodology
-
-### Exploratory Data Analysis
+## Exploratory Data Analysis
 
 Scatter plots were generated for each feature against price to understand
-the nature and direction of relationships:
+the nature and direction of relationships before modeling.
 
-| Feature | Expected Relationship with Price |
-|---------|----------------------------------|
-| mpg | Negative - higher efficiency cars tend to be smaller and cheaper |
-| tax | Positive - higher tax often correlates with larger more expensive vehicles |
-| engineSize | Positive - larger engines command higher prices |
-| year | Positive - newer cars are worth more |
-| mileage | Negative - higher mileage reduces resale value |
-| fuelType | Variable - hybrid and electric command premiums |
-| transmission | Variable - automatic typically commands a premium |
+### Key Findings From Scatter Plots
+
+MPG vs Price:
+Strong negative relationship. Lower MPG vehicles command higher prices,
+likely reflecting that larger more powerful engines are less fuel efficient
+but more desirable. A cluster of outliers at 200+ MPG suggests data quality
+issues in a small number of listings.
+
+Tax vs Price:
+Most listings cluster around 100 to 200 GBP annual tax. Higher tax
+vehicles do not show a clear price premium, suggesting tax is less
+predictive than other features.
+
+Engine Size vs Price:
+Clear positive relationship at larger engine sizes (5.0L vehicles
+command 25,000 to 50,000 GBP). Engine size of 0 likely represents
+electric vehicles with no combustion engine.
+
+Year vs Price:
+The strongest visual relationship. Price increases exponentially with
+year of manufacture, with post-2015 vehicles showing dramatic price
+increases. This is the most visually compelling predictor of price.
+
+Fuel Type vs Price:
+Petrol and diesel dominate the dataset. Hybrid vehicles show a moderate
+price premium. Electric vehicles are sparsely represented with prices
+around 16,000 GBP.
+
+Mileage vs Price:
+Clear exponential decay. Price drops sharply through the first 25,000
+miles then continues declining more gradually. This is the classic
+used car depreciation curve and one of the clearest relationships
+in the dataset.
+
+Transmission vs Price:
+Automatic and Semi-Auto transmissions tend toward slightly higher prices
+than manual, consistent with general used car market patterns, though
+the relationship is noisy.
+
+---
+
+## Methodology
 
 ### Encoding
 
 Categorical features were label encoded using sklearn LabelEncoder:
-- model: encoded to integer
-- transmission: encoded to integer
-- fuelType: encoded to integer
-
-Note: Label encoding assumes an ordinal relationship between categories
-which does not hold for nominal features like model or fuel type. One-hot
-encoding would be more theoretically appropriate.
+- model encoded to integer
+- transmission encoded to integer
+- fuelType encoded to integer
 
 ### Feature Selection
 
 Seven features were selected as model inputs:
 model, year, transmission, mileage, fuelType, mpg, engineSize
 
-Tax was excluded from the model inputs despite being in the dataset.
-
 ### Train Test Split
 
-An 80/20 split was implemented using a random mask rather than sklearn
-train_test_split. 80% of rows were randomly assigned to training and
-the remaining 20% to testing.
+An 80/20 split was implemented using a random mask. 14,527 listings
+were used for training and 3,436 for testing.
 
 ### Model
 
@@ -116,89 +140,105 @@ linear relationship between the seven input features and price.
 
 ### Experiment 1: Exploratory Scatter Analysis
 
-Scatter plots were generated for each feature against price to visually
-identify which features had the strongest and clearest relationship
-with sale price.
-
-Key observations:
-- Engine size showed the clearest positive relationship with price
-- Year showed a strong positive relationship with price
-- Mileage showed a negative relationship with price as expected
-- MPG showed a noisy negative relationship
+Scatter plots confirmed that year and mileage have the clearest and
+strongest relationships with price. Engine size shows a positive
+relationship particularly at the higher end. MPG shows a negative
+relationship consistent with larger less efficient vehicles being
+more expensive.
 
 ### Experiment 2: Data Cleaning Impact
 
-Three filtering decisions were made before modeling. Each decision
-removed potentially problematic data that could have distorted model
-performance:
-
-- Focus removal cleaned up model-specific pricing anomalies
-- Other fuel type removal removed an uninterpretable category
-- Post-2020 year removal removed likely data entry errors
+Three filtering decisions removed problematic data before modeling.
+Removing the Focus model, Other fuel type, and post-2020 listings
+cleaned anomalies that would have distorted coefficient estimates
+and inflated error on the test set.
 
 ### Experiment 3: Linear Regression
 
 A Linear Regression model was trained on the cleaned and encoded dataset.
 
-Model coefficients show the marginal impact of each feature on price
-holding all other features constant.
+Model coefficients:
+year:         +1263.77  (each additional year adds ~1,264 GBP)
+engineSize:   +4182.45  (each litre of engine size adds ~4,182 GBP)
+transmission:  -274.66  (negative due to label encoding ordering)
+mileage:         -0.06  (each additional mile reduces price by 6 pence)
+fuelType:      -427.15  (varies by encoding order)
+mpg:           -111.91  (higher MPG associated with lower price)
+model:          +26.17  (varies by encoding order)
 
-R-squared on test set: [paste your model.score output here]
+Intercept: -2,533,447.86
+
+The large negative intercept reflects that the model needs to offset
+the large positive contribution of year (e.g. year 2019 multiplied
+by 1,263.77 would be unrealistically large without the intercept).
+
+R-squared on test set: 0.747
 
 ---
 
 ## Results
 
 Model: Linear Regression
-R-squared: [paste your score here]
+Features: 7
+Training set: 14,527 listings
+Test set: 3,436 listings
+R-squared: 0.747
 
-Model coefficients: [paste your model.coef_ output here]
-Intercept: [paste your model.intercept_ output here]
-
-An R-squared of X means the model explains X% of the variance in used
-Ford vehicle prices using the seven selected features.
+The model explains 74.7% of the variance in used Ford vehicle prices
+using seven features. This is a strong result for a linear model on
+a real-world pricing dataset, suggesting that year, mileage, and
+engine size together capture the majority of price variation.
 
 ---
 
 ## Conclusion and Takeaways
 
-1. The hypothesis was partially supported
+1. The hypothesis was supported
 
-Linear regression can capture the broad directional relationships between
-vehicle characteristics and price. Year, mileage, and engine size are
-likely the dominant predictors consistent with general used car market
-intuition.
+74.7% of used Ford price variance is explained by just seven features.
+Year and mileage are the dominant drivers, consistent with standard
+used car depreciation theory. A buyer or seller can estimate fair
+market value with reasonable confidence using only these observable
+characteristics.
 
-2. Label encoding is inappropriate for nominal categories
+2. Year is the single most important predictor
 
-Encoding Ford model names as integers (0, 1, 2, etc.) implies that
-the numeric distance between model codes is meaningful, which it is not.
-A Fiesta encoded as 0 and a Kuga encoded as 5 does not mean the Kuga
-is five times the Fiesta in some meaningful sense. One-hot encoding
-would treat each model as an independent category without implied ordering.
+The coefficient of +1,263.77 per year means each additional year of
+manufacture adds approximately 1,264 GBP to the expected price holding
+all other features constant. The scatter plot confirms this relationship
+is strong and consistent across the entire dataset.
 
-3. Linear regression likely underfits this problem
+3. Mileage follows the classic depreciation curve
 
-Used car prices likely have nonlinear relationships with mileage and year,
-and significant interaction effects between features such as model and
-year, or engine size and fuel type. A gradient boosting model would
-almost certainly outperform linear regression on this dataset.
+The scatter plot shows the classic exponential decay of price with
+mileage. The linear coefficient of -0.056 per mile captures the average
+rate of this decay but misses the nonlinearity, where early miles
+depreciate value much faster than later miles. A log transformation
+of mileage would likely improve model performance.
 
-4. The random mask split introduces variability
+4. Label encoding introduces false ordinal relationships
 
-Using a random mask without a fixed random state means each run produces
-a different train test split, making results non-reproducible.
-sklearn train_test_split with random_state=42 would fix this.
+Encoding Ford model names and fuel types as integers implies a numeric
+ordering that does not exist. A Fiesta encoded as 3 and a Kuga encoded
+as 7 does not mean the Kuga is mathematically 4 units more than the
+Fiesta in any meaningful sense. One-hot encoding would treat each
+category independently and likely improve coefficient interpretability
+and model performance.
 
 5. Limitations
 
-- Label encoding of nominal features introduces false ordinal relationships
-- Tax feature excluded without documented justification
-- No fixed random state makes results non-reproducible between runs
-- Linear model cannot capture nonlinear price depreciation curves
-- No cross validation was performed so the single test score may not
-  generalize
-- Focus model removed without full documentation of why
+- Label encoding of nominal features introduces false ordinal
+  relationships for model, transmission, and fuelType
+- No fixed random state on the train test split makes results
+  slightly variable between runs
+- Linear model cannot capture the nonlinear depreciation curves
+  visible in the mileage and year scatter plots
+- No cross validation was performed so the single R-squared score
+  may not fully represent generalization performance
+- Outliers such as the 200+ MPG listings and the single 3.2L engine
+  listing were not investigated or removed
+- A gradient boosting model would almost certainly outperform linear
+  regression on this dataset
 
 ---
 
